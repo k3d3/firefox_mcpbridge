@@ -7,24 +7,19 @@ const API_KEY = "abc123";
 const activeConnections = new Map();
 
 function createDebuggedWebSocket(url) {
-  console.log('Creating WebSocket connection to:', url);
   const ws = new WebSocket(url);
   
   ws.onclose = (event) => {
-    console.log('WebSocket closed:', {
-      code: event.code,
-      reason: event.reason,
-      wasClean: event.wasClean,
-      timestamp: new Date().toISOString()
-    });
+    if (!event.wasClean) {
+      console.error('WebSocket closed unexpectedly:', {
+        code: event.code,
+        reason: event.reason
+      });
+    }
   };
   
   ws.onerror = (error) => {
-    console.error('WebSocket error:', {
-      error,
-      readyState: ws.readyState,
-      timestamp: new Date().toISOString()
-    });
+    console.error('WebSocket error:', error);
   };
 
   return ws;
@@ -33,12 +28,10 @@ function createDebuggedWebSocket(url) {
 // Listen for messages from content scripts
 const browser = globalThis.browser || globalThis.chrome;
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log('Background received message:', message);  // Added logging
   if (!message?.type) return;
 
   if (message.type === 'claude-bridge-request') {
-    const { method, args, requestId } = message;
-    console.log('Handling request:', method, args, requestId);
+    const { method, args } = message;
     
     switch(method) {
       case 'listMcpServers': {
@@ -48,12 +41,10 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
             "list": true,
             "key": API_KEY
           };
-          console.log('Sending list payload:', payload);
           ws.send(JSON.stringify(payload));
         };
 
         ws.onmessage = function(event) {
-          console.log('List response from server:', event.data);
           try {
             const data = JSON.parse(event.data);
             if (data.error) {
@@ -62,7 +53,7 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
               sendResponse({ response: data });
             }
           } catch (err) {
-            console.warn('Ignoring non-JSON message from server:', event.data);
+            console.warn('Invalid server response:', event.data);
             sendResponse({ error: 'Invalid server response' });
           }
           ws.close();
@@ -72,12 +63,10 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       case 'connectToMcpServer': {
         const serverName = args[0];
-        console.log('Connecting to MCP server:', serverName);
         
         // Check if we already have a connection for this server and tab
         const connectionKey = `${serverName}-${sender.tab.id}`;
         if (activeConnections.has(connectionKey)) {
-          console.log('Using existing connection for:', connectionKey);
           sendResponse({ response: true });
           return true;
         }
@@ -90,12 +79,10 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
               "connect": serverName,
               "key": API_KEY
             };
-            console.log('Socket opened, sending connect payload:', payload);
             ws.send(JSON.stringify(payload));
           };
 
           ws.onmessage = function(event) {
-            console.log('Message from server:', serverName, event.data);
             try {
               const data = JSON.parse(event.data);
               
@@ -112,7 +99,6 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 
                 // Set up ongoing message handling
                 ws.onmessage = function(event) {
-                  console.log('Message from server:', serverName, event.data);
                   try {
                     const data = JSON.parse(event.data);
                     // Send message to specific tab
@@ -121,21 +107,22 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
                       serverName: serverName,
                       data: data
                     }).catch(err => {
-                      console.error('Error sending tab message:', err);
+                      console.error('Error sending message to tab:', err);
                     });
                   } catch (err) {
-                    console.warn('Ignoring non-JSON message from server:', event.data);
+                    console.warn('Invalid server message:', event.data);
                   }
                 };
                 
                 // Set up cleanup on connection close
                 const origOnClose = ws.onclose;
                 ws.onclose = function(event) {
-                  console.log('Connection closed for:', connectionKey, {
-                    code: event.code,
-                    reason: event.reason,
-                    wasClean: event.wasClean
-                  });
+                  if (!event.wasClean) {
+                    console.error('Connection closed unexpectedly:', {
+                      code: event.code,
+                      reason: event.reason
+                    });
+                  }
                   activeConnections.delete(connectionKey);
                   origOnClose?.(event);
                 };
@@ -143,9 +130,7 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 sendResponse({ response: true });
               }
             } catch (err) {
-              console.warn('Ignoring non-JSON initial message from server:', event.data);
               // For initial connection message, we still want to proceed
-              // Store the active connection with tab ID
               activeConnections.set(connectionKey, {
                 socket: ws,
                 lastUsed: Date.now(),
@@ -154,19 +139,17 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
               
               // Set up ongoing message handling
               ws.onmessage = function(event) {
-                console.log('Message from server:', serverName, event.data);
                 try {
                   const data = JSON.parse(event.data);
-                  // Send message to specific tab
                   browser.tabs.sendMessage(sender.tab.id, {
                     type: 'mcp-server-message',
                     serverName: serverName,
                     data: data
                   }).catch(err => {
-                    console.error('Error sending tab message:', err);
+                    console.error('Error sending message to tab:', err);
                   });
                 } catch (err) {
-                  console.warn('Ignoring non-JSON message from server:', event.data);
+                  console.warn('Invalid server message:', event.data);
                 }
               };
               
@@ -175,12 +158,12 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
           };
 
           ws.onerror = function(error) {
-            console.error('Connection error:', error);
+            console.error('WebSocket connection failed:', error);
             sendResponse({ error: 'WebSocket connection failed' });
             activeConnections.delete(connectionKey);
           };
         } catch (error) {
-          console.error('Error creating WebSocket:', error);
+          console.error('Failed to create WebSocket:', error);
           sendResponse({ error: error.message });
         }
         break;
@@ -194,8 +177,7 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   
   // Handle ongoing messages for active connections
-  else if (message.type === 'mcp-client-message') {  // Changed from 'mcp-message' to 'mcp-client-message'
-    console.log('Handling mcp-client-message:', message);  // Added logging
+  else if (message.type === 'mcp-client-message') {
     const { serverName, message: msg } = message;
     const connectionKey = `${serverName}-${sender.tab.id}`;
     const connection = activeConnections.get(connectionKey);
@@ -203,11 +185,10 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (connection) {
       try {
         connection.lastUsed = Date.now();
-        const payload = msg || message.data;  // Handle both msg and data fields
-        console.log('Sending message to server:', serverName, payload);
+        const payload = msg || message.data;
         connection.socket.send(JSON.stringify(payload));
       } catch (error) {
-        console.error('Error sending message to server:', error);
+        console.error('Failed to send message to server:', error);
         connection.socket.close();
         activeConnections.delete(connectionKey);
       }
@@ -217,12 +198,11 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-// Optional: Cleanup inactive connections periodically
+// Cleanup inactive connections periodically
 setInterval(() => {
   const now = Date.now();
   for (const [connectionKey, conn] of activeConnections.entries()) {
     if (now - conn.lastUsed > 30 * 60 * 1000) { // 30 minutes
-      console.log('Cleaning up inactive connection:', connectionKey);
       conn.socket.close();
       activeConnections.delete(connectionKey);
     }
