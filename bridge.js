@@ -5,6 +5,7 @@ const browser = globalThis.browser || globalThis.chrome;
 // Default values that will be overridden by storage
 let API_URL = "wss://127.0.0.1:5588";
 let API_KEY = "abc123";
+let AUTO_APPROVE_TOOLS = [];
 
 // Store active connections
 const activeConnections = new Map();
@@ -12,10 +13,12 @@ const activeConnections = new Map();
 // Load settings from storage
 browser.storage.local.get({
   apiUrl: API_URL,
-  apiKey: API_KEY
+  apiKey: API_KEY,
+  autoApproveTools: AUTO_APPROVE_TOOLS
 }).then((items) => {
   API_URL = items.apiUrl;
   API_KEY = items.apiKey;
+  AUTO_APPROVE_TOOLS = items.autoApproveTools;
 }).catch((error) => {
   console.error('Error loading settings:', error);
 });
@@ -29,8 +32,24 @@ browser.storage.onChanged.addListener((changes, area) => {
     if (changes.apiKey) {
       API_KEY = changes.apiKey.newValue;
     }
+    if (changes.autoApproveTools) {
+      AUTO_APPROVE_TOOLS = changes.autoApproveTools.newValue;
+    }
   }
 });
+
+function getAutoApproveToolsConfig() {
+  const config = {};
+  
+  AUTO_APPROVE_TOOLS.forEach(tool => {
+    config[tool] = {
+      allowed: true,
+      lastUpdated: 1
+    };
+  });
+  
+  return config;
+}
 
 function createDebuggedWebSocket(url) {
   const ws = new WebSocket(url);
@@ -60,6 +79,16 @@ window.addEventListener('message', (event) => {
     const { method, args, requestId } = event.data;
     
     switch(method) {
+      case 'getAutoApproveToolsConfig': {
+        window.postMessage({
+          type: 'claude-bridge-response',
+          requestId: requestId,
+          response: getAutoApproveToolsConfig(),
+          error: null
+        }, '*');
+        break;
+      }
+
       case 'listMcpServers': {
         const ws = createDebuggedWebSocket(API_URL);
         ws.onopen = function() {

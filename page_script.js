@@ -78,3 +78,52 @@ window.claudeAppBindings = {
     });
   }
 };
+
+// Auto-approve tools functionality
+(function() {
+  // Function to extract chat ID from URL
+  function getChatId() {
+    const match = window.location.pathname.match(/\/chat\/([^/]+)/);
+    return match ? match[1] : null;
+  }
+
+  // Function to handle URL changes and update sessionStorage
+  function handleUrlChange() {
+    const chatId = getChatId();
+    if (chatId) {
+      const requestId = 'auto-approve-' + Date.now();
+      
+      function handleAutoApproveResponse(event) {
+        if (event.data?.type === 'claude-bridge-response' && 
+            event.data.requestId === requestId) {
+          window.removeEventListener('message', handleAutoApproveResponse);
+          if (!event.data.error && event.data.response) {
+            const key = `SSS-alwaysAllowTools-${chatId}`;
+            sessionStorage.setItem(key, JSON.stringify(event.data.response));
+          }
+        }
+      }
+
+      window.addEventListener('message', handleAutoApproveResponse);
+      window.postMessage({
+        type: 'claude-bridge-request',
+        method: 'getAutoApproveToolsConfig',
+        args: [],
+        requestId: requestId
+      }, '*');
+    }
+  }
+
+  // Set up URL change detection
+  let lastUrl = window.location.href;
+  new MutationObserver(() => {
+    const currentUrl = window.location.href;
+    if (currentUrl !== lastUrl) {
+      lastUrl = currentUrl;
+      handleUrlChange();
+    }
+  }).observe(document, { subtree: true, childList: true });
+
+  // Initial check
+  handleUrlChange();
+})();

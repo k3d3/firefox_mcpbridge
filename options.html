@@ -6,6 +6,7 @@
     body {
       padding: 20px;
       font-family: system-ui, -apple-system, sans-serif;
+      min-width: 460px;
     }
     .form-group {
       margin-bottom: 15px;
@@ -15,13 +16,22 @@
       margin-bottom: 5px;
       font-weight: 500;
     }
-    input[type="text"] {
+    input[type="text"], textarea {
       width: 100%;
       max-width: 400px;
       padding: 8px;
       margin-bottom: 5px;
       border: 1px solid #ccc;
       border-radius: 4px;
+    }
+    textarea {
+      height: 100px;
+      font-family: monospace;
+    }
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 15px;
     }
     button {
       padding: 8px 16px;
@@ -30,24 +40,48 @@
       border: none;
       border-radius: 4px;
       cursor: pointer;
+      white-space: nowrap;
     }
     button:hover {
       background-color: #003eaa;
     }
     #status {
-      margin-top: 15px;
+      height: 37px; /* Height that accommodates the message + padding */
+      margin: 15px 0;
       padding: 8px;
-      display: none;
+      visibility: hidden; /* Use visibility instead of display */
     }
     .success {
       background-color: #e6ffe6;
       color: #006700;
       border: 1px solid #00b300;
+      border-radius: 4px;
+      visibility: visible;
     }
     .error {
       background-color: #ffe6e6;
       color: #670000;
       border: 1px solid #b30000;
+      border-radius: 4px;
+      visibility: visible;
+    }
+    #toolList {
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      max-width: 400px;
+      display: none;
+    }
+    .tool-item {
+      margin-bottom: 5px;
+      font-family: monospace;
+      cursor: pointer;
+      padding: 2px 5px;
+      transition: background-color 0.2s;
+    }
+    .tool-item:hover {
+      background-color: #e8e8e8;
+      border-radius: 3px;
     }
   </style>
 </head>
@@ -64,10 +98,20 @@
     <input type="text" id="apiKey" placeholder="Enter your API key">
   </div>
 
-  <button id="save">Save Settings</button>
+  <div class="form-group">
+    <label for="autoApproveTools">Auto-approve Tools (one per line):</label>
+    <textarea id="autoApproveTools" placeholder="Enter tool names to auto-approve"></textarea>
+  </div>
+
+  <div class="button-group">
+    <button id="save">Save Settings</button>
+    <button id="getTools">Get Available Tools</button>
+  </div>
   
   <div id="status"></div>
+  <div id="toolList"></div>
 
+  <script src="bridge.js"></script>
   <script src="options.js"></script>
 </body>
 </html>
