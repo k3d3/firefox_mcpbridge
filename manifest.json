@@ -1,0 +1,23 @@
+{
+  "manifest_version": 2,
+  "name": "Claude MCP",
+  "version": "1.0",
+  "description": "Model Context Protocol support for Claude website. Is this a bad idea security-wise? It's a horrible idea. But the desktop security is already terrible. Oh well.",
+  
+  "content_scripts": [
+    {
+      "matches": ["*://claude.ai/*", "*://*.claude.ai/*"],
+      "js": ["main_content.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["*://claude.ai/*", "*://*.claude.ai/*"],
+      "js": ["isolated_content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "permissions": [
+    "*://claude.ai/*"
+  ]
+}
