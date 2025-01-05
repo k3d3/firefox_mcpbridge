@@ -6,9 +6,7 @@ window.claudeAppBindings = {
       const requestId = Math.random().toString(36).slice(2);
       
       function handleResponse(event) {
-        console.log("handling response", event.data?.type);
         if (event.data?.type === 'claude-bridge-response' && event.data.requestId === requestId) {
-          console.log("claude bridge response");
           window.removeEventListener('message', handleResponse);
           if (event.data.error) {
             reject(new Error(event.data.error));
@@ -20,7 +18,6 @@ window.claudeAppBindings = {
             // Set up message handler for port2
             // This comes from the page, and needs to be sent to content_bridge.
             channel.port2.onmessage = function(event) {
-              console.log("Received message from port2:", event.data);
               window.postMessage({
                 type: 'mcp-client-message',
                 serverName: serverName,
@@ -36,9 +33,7 @@ window.claudeAppBindings = {
             
             // Keep port2 for handling messages
             window.addEventListener('message', function(event) {
-              console.log('Received message:', event.data);
               if (event.data?.type === 'mcp-server-message' && event.data.serverName === serverName) {
-                console.log('mcp-server-message, forwarding message to page:', event.data.data);
                 channel.port2.postMessage(event.data.data);
               }
             });
@@ -49,7 +44,6 @@ window.claudeAppBindings = {
       }
 
       window.addEventListener('message', handleResponse);
-      console.log("Sending message to connect to server: " + serverName);
       window.postMessage({
         type: 'claude-bridge-request',
         method: 'connectToMcpServer',
