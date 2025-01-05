@@ -31,7 +31,6 @@
     "*://claude.ai/*",
     "webRequest",
     "webRequestBlocking",
-    "wss://127.0.0.1:5588/",
     "storage"
   ],
   "browser_specific_settings": {
