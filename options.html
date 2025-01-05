@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Claude MCP Bridge Settings</title>
+  <style>
+    body {
+      padding: 20px;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+    }
+    input[type="text"] {
+      width: 100%;
+      max-width: 400px;
+      padding: 8px;
+      margin-bottom: 5px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    button {
+      padding: 8px 16px;
+      background-color: #0060df;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #003eaa;
+    }
+    #status {
+      margin-top: 15px;
+      padding: 8px;
+      display: none;
+    }
+    .success {
+      background-color: #e6ffe6;
+      color: #006700;
+      border: 1px solid #00b300;
+    }
+    .error {
+      background-color: #ffe6e6;
+      color: #670000;
+      border: 1px solid #b30000;
+    }
+  </style>
+</head>
+<body>
+  <h1>Claude MCP Bridge Settings</h1>
+  
+  <div class="form-group">
+    <label for="apiUrl">API Server URL:</label>
+    <input type="text" id="apiUrl" placeholder="e.g., wss://127.0.0.1:5588">
+  </div>
+
+  <div class="form-group">
+    <label for="apiKey">API Key:</label>
+    <input type="text" id="apiKey" placeholder="Enter your API key">
+  </div>
+
+  <button id="save">Save Settings</button>
+  
+  <div id="status"></div>
+
+  <script src="options.js"></script>
+</body>
+</html>

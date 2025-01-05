@@ -9,6 +9,11 @@
     "persistent": true
   },
   
+  "options_ui": {
+    "page": "options.html",
+    "browser_style": true
+  },
+
   "content_scripts": [
     {
       "matches": ["*://claude.ai/*", "*://*.claude.ai/*"],
@@ -26,7 +31,8 @@
     "*://claude.ai/*",
     "webRequest",
     "webRequestBlocking",
-    "wss://127.0.0.1:5588/"
+    "wss://127.0.0.1:5588/",
+    "storage"
   ],
   "browser_specific_settings": {
     "gecko": {

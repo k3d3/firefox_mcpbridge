@@ -1,7 +1,31 @@
 'use strict';
 
-const API_URL = "wss://127.0.0.1:5588";
-const API_KEY = "abc123";
+// Default values that will be overridden by storage
+let API_URL = "wss://127.0.0.1:5588";
+let API_KEY = "abc123";
+
+// Load settings from storage
+browser.storage.local.get({
+  apiUrl: API_URL,
+  apiKey: API_KEY
+}).then((items) => {
+  API_URL = items.apiUrl;
+  API_KEY = items.apiKey;
+}).catch((error) => {
+  console.error('Error loading settings:', error);
+});
+
+// Listen for changes to settings
+browser.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local') {
+    if (changes.apiUrl) {
+      API_URL = changes.apiUrl.newValue;
+    }
+    if (changes.apiKey) {
+      API_KEY = changes.apiKey.newValue;
+    }
+  }
+});
 
 // Store active connections with their associated tab IDs
 const activeConnections = new Map();
@@ -26,7 +50,6 @@ function createDebuggedWebSocket(url) {
 }
 
 // Listen for messages from content scripts
-const browser = globalThis.browser || globalThis.chrome;
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message?.type) return;
 
