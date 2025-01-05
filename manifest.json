@@ -1,23 +1,36 @@
 {
   "manifest_version": 2,
-  "name": "Claude MCP",
+  "name": "Claude MCP Bridge",
   "version": "1.0",
-  "description": "Model Context Protocol support for Claude website. Is this a bad idea security-wise? It's a horrible idea. But the desktop security is already terrible. Oh well.",
+  "description": "Claude MCP Bridge",
+  
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": true
+  },
   
   "content_scripts": [
+    {
+      "matches": ["*://claude.ai/*", "*://*.claude.ai/*"],
+      "js": ["content_bridge.js"],
+      "run_at": "document_start"
+    },
     {
       "matches": ["*://claude.ai/*", "*://*.claude.ai/*"],
       "js": ["main_content.js"],
       "run_at": "document_start",
       "world": "MAIN"
-    },
-    {
-      "matches": ["*://claude.ai/*", "*://*.claude.ai/*"],
-      "js": ["isolated_content.js"],
-      "run_at": "document_start"
     }
   ],
   "permissions": [
-    "*://claude.ai/*"
-  ]
+    "*://claude.ai/*",
+    "webRequest",
+    "webRequestBlocking",
+    "wss://127.0.0.1:5588/"
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "claude-mcp-bridge@example.com"
+    }
+  }
 }
