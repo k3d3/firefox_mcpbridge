@@ -1,8 +1,13 @@
 'use strict';
 
+const browser = globalThis.browser || globalThis.chrome;
+
 // Default values that will be overridden by storage
 let API_URL = "wss://127.0.0.1:5588";
 let API_KEY = "abc123";
+
+// Store active connections
+const activeConnections = new Map();
 
 // Load settings from storage
 browser.storage.local.get({
@@ -27,9 +32,6 @@ browser.storage.onChanged.addListener((changes, area) => {
   }
 });
 
-// Store active connections with their associated tab IDs
-const activeConnections = new Map();
-
 function createDebuggedWebSocket(url) {
   const ws = new WebSocket(url);
   
@@ -49,12 +51,13 @@ function createDebuggedWebSocket(url) {
   return ws;
 }
 
-// Listen for messages from content scripts
-browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (!message?.type) return;
-
-  if (message.type === 'claude-bridge-request') {
-    const { method, args } = message;
+// Handle requests from the page script
+window.addEventListener('message', (event) => {
+  if (event.source !== window) return;
+  
+  // Handle initial requests
+  if (event.data?.type === 'claude-bridge-request') {
+    const { method, args, requestId } = event.data;
     
     switch(method) {
       case 'listMcpServers': {
@@ -70,14 +73,20 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
         ws.onmessage = function(event) {
           try {
             const data = JSON.parse(event.data);
-            if (data.error) {
-              sendResponse({ error: data.error });
-            } else {
-              sendResponse({ response: data });
-            }
+            window.postMessage({
+              type: 'claude-bridge-response',
+              requestId: requestId,
+              response: data.error ? null : data,
+              error: data.error
+            }, '*');
           } catch (err) {
             console.warn('Invalid server response:', event.data);
-            sendResponse({ error: 'Invalid server response' });
+            window.postMessage({
+              type: 'claude-bridge-response',
+              requestId: requestId,
+              response: null,
+              error: 'Invalid server response'
+            }, '*');
           }
           ws.close();
         };
@@ -87,11 +96,15 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
       case 'connectToMcpServer': {
         const serverName = args[0];
         
-        // Check if we already have a connection for this server and tab
-        const connectionKey = `${serverName}-${sender.tab.id}`;
-        if (activeConnections.has(connectionKey)) {
-          sendResponse({ response: true });
-          return true;
+        // Check if we already have a connection for this server
+        if (activeConnections.has(serverName)) {
+          window.postMessage({
+            type: 'claude-bridge-response',
+            requestId: requestId,
+            response: true,
+            error: null
+          }, '*');
+          return;
         }
         
         try {
@@ -111,27 +124,28 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
               
               if (data.error) {
                 ws.close();
-                sendResponse({ error: data.error });
+                window.postMessage({
+                  type: 'claude-bridge-response',
+                  requestId: requestId,
+                  response: null,
+                  error: data.error
+                }, '*');
               } else {
-                // Store the active connection with tab ID
-                activeConnections.set(connectionKey, {
+                // Store the active connection
+                activeConnections.set(serverName, {
                   socket: ws,
-                  lastUsed: Date.now(),
-                  tabId: sender.tab.id
+                  lastUsed: Date.now()
                 });
                 
                 // Set up ongoing message handling
                 ws.onmessage = function(event) {
                   try {
                     const data = JSON.parse(event.data);
-                    // Send message to specific tab
-                    browser.tabs.sendMessage(sender.tab.id, {
+                    window.postMessage({
                       type: 'mcp-server-message',
                       serverName: serverName,
                       data: data
-                    }).catch(err => {
-                      console.error('Error sending message to tab:', err);
-                    });
+                    }, '*');
                   } catch (err) {
                     console.warn('Invalid server message:', event.data);
                   }
@@ -146,88 +160,95 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
                       reason: event.reason
                     });
                   }
-                  activeConnections.delete(connectionKey);
+                  activeConnections.delete(serverName);
                   origOnClose?.(event);
                 };
                 
-                sendResponse({ response: true });
+                window.postMessage({
+                  type: 'claude-bridge-response',
+                  requestId: requestId,
+                  response: true,
+                  error: null
+                }, '*');
               }
             } catch (err) {
               // For initial connection message, we still want to proceed
-              activeConnections.set(connectionKey, {
+              activeConnections.set(serverName, {
                 socket: ws,
-                lastUsed: Date.now(),
-                tabId: sender.tab.id
+                lastUsed: Date.now()
               });
               
               // Set up ongoing message handling
               ws.onmessage = function(event) {
                 try {
                   const data = JSON.parse(event.data);
-                  browser.tabs.sendMessage(sender.tab.id, {
+                  window.postMessage({
                     type: 'mcp-server-message',
                     serverName: serverName,
                     data: data
-                  }).catch(err => {
-                    console.error('Error sending message to tab:', err);
-                  });
+                  }, '*');
                 } catch (err) {
                   console.warn('Invalid server message:', event.data);
                 }
               };
               
-              sendResponse({ response: true });
+              window.postMessage({
+                type: 'claude-bridge-response',
+                requestId: requestId,
+                response: true,
+                error: null
+              }, '*');
             }
           };
 
           ws.onerror = function(error) {
             console.error('WebSocket connection failed:', error);
-            sendResponse({ error: 'WebSocket connection failed' });
-            activeConnections.delete(connectionKey);
+            window.postMessage({
+              type: 'claude-bridge-response',
+              requestId: requestId,
+              response: null,
+              error: 'WebSocket connection failed'
+            }, '*');
+            activeConnections.delete(serverName);
           };
         } catch (error) {
           console.error('Failed to create WebSocket:', error);
-          sendResponse({ error: error.message });
+          window.postMessage({
+            type: 'claude-bridge-response',
+            requestId: requestId,
+            response: null,
+            error: error.message
+          }, '*');
         }
         break;
       }
 
       default:
-        sendResponse({ error: 'Unknown method: ' + method });
+        window.postMessage({
+          type: 'claude-bridge-response',
+          requestId: requestId,
+          response: null,
+          error: 'Unknown method: ' + method
+        }, '*');
     }
-    
-    return true;  // Required for async response
   }
   
   // Handle ongoing messages for active connections
-  else if (message.type === 'mcp-client-message') {
-    const { serverName, message: msg } = message;
-    const connectionKey = `${serverName}-${sender.tab.id}`;
-    const connection = activeConnections.get(connectionKey);
+  else if (event.data?.type === 'mcp-client-message') {
+    const { serverName, data } = event.data;
+    const connection = activeConnections.get(serverName);
     
     if (connection) {
       try {
         connection.lastUsed = Date.now();
-        const payload = msg || message.data;
-        connection.socket.send(JSON.stringify(payload));
+        connection.socket.send(JSON.stringify(data));
       } catch (error) {
         console.error('Failed to send message to server:', error);
         connection.socket.close();
-        activeConnections.delete(connectionKey);
+        activeConnections.delete(serverName);
       }
     } else {
-      console.warn('No active connection found for server:', connectionKey);
+      console.warn('No active connection found for server:', serverName);
     }
   }
 });
-
-// Cleanup inactive connections periodically
-setInterval(() => {
-  const now = Date.now();
-  for (const [connectionKey, conn] of activeConnections.entries()) {
-    if (now - conn.lastUsed > 30 * 60 * 1000) { // 30 minutes
-      conn.socket.close();
-      activeConnections.delete(connectionKey);
-    }
-  }
-}, 5 * 60 * 1000); // Check every 5 minutes

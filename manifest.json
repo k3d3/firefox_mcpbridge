@@ -4,11 +4,6 @@
   "version": "1.0",
   "description": "Claude MCP Bridge",
   
-  "background": {
-    "scripts": ["background.js"],
-    "persistent": true
-  },
-  
   "options_ui": {
     "page": "options.html",
     "browser_style": true
@@ -17,12 +12,12 @@
   "content_scripts": [
     {
       "matches": ["*://claude.ai/*", "*://*.claude.ai/*"],
-      "js": ["content_bridge.js"],
+      "js": ["bridge.js"],
       "run_at": "document_start"
     },
     {
       "matches": ["*://claude.ai/*", "*://*.claude.ai/*"],
-      "js": ["main_content.js"],
+      "js": ["page_script.js"],
       "run_at": "document_start",
       "world": "MAIN"
     }
