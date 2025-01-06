@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Claude MCP Bridge",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Claude MCP Bridge",
   
   "options_ui": {
